@@ -526,7 +526,7 @@ https://www.aquasec.com/cloud-native-academy/supply-chain-security/ci-cd-pipelin
 - OAuth client secrets
 - Encryption keys
 - Service account credentials
-- Railway API tokens
+- Hosting platform API tokens (e.g. Railway, Render)
 
 ---
 
@@ -957,7 +957,7 @@ mvn versions:display-dependency-updates
 |---|---|---|---|
 | **4.13 (today)** | **Snyk** | SCA | On the Snyk website, then as a CircleCI job |
 | 4.14 | **OSV-Scanner** (Google) | SCA | GitHub Actions |
-| 4.14 | **OWASP ZAP** | DAST | GitHub Actions, against your Railway app |
+| 4.14 | **OWASP ZAP** | DAST | GitHub Actions, against your live app (Render or Railway) |
 
 ---
 
@@ -1511,7 +1511,7 @@ Fill the table from **your** pipeline's output - the top 3-5 issues are enough.
 2. The Snyk website already showed the issues. Why put the scans **in the pipeline** as well?
 3. `snyk_scan` (SCA) and `snyk_code` (SAST) found different things. What does each one look at?
 4. A teammate suggests `fail-on-issues: false` "so we can keep deploying". What would you say?
-5. Which jobs in your pipeline can see your Docker Hub and Railway tokens? Which ones don't need to?
+5. Which jobs in your pipeline can see your Docker Hub and deployment tokens? Which ones don't need to?
 
 <!-- Answers: 1) Tests check behaviour, not known vulnerabilities - vulnerable code can work perfectly. 2) The website only reports; the pipeline job blocks publish/deploy. 3) SCA: libraries in pom.xml (other people's code); SAST: patterns in our own source. 4) It turns the gate into a report and ships known-vulnerable code; instead fix, or accept a specific issue with a reviewed, time-limited ignore. 5) publish (docker-hub context) and deploy (RAILWAY_TOKEN); project env vars are visible to all jobs - contexts limit that. -->
 
@@ -1561,11 +1561,11 @@ Fill the table from **your** pipeline's output - the top 3-5 issues are enough.
 1. Add **OSV-Scanner** (Google) as a GitHub Actions workflow - pinned by commit SHA
 2. See its results in your repository's **Security** tab
 3. Handle a finding by fixing it or ignoring it - with a reason and an expiry date
-4. Run an **OWASP ZAP** DAST scan against your live Railway app
+4. Run an **OWASP ZAP** DAST scan against your live app (on Render or Railway)
 
 **Before next lesson:**
-- Keep today's pipeline as it is - `snyk_scan` failing is expected; your Railway app keeps running the version deployed in Lesson 4.12
-- Have your Railway app URL ready
+- Keep today's pipeline as it is - `snyk_scan` failing is expected; your live app keeps running the version deployed in Lesson 4.12
+- Have your live app URL ready (Render or Railway)
 
 ---
 
