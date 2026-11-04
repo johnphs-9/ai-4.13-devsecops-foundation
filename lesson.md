@@ -18,7 +18,7 @@ By the end of this lesson, you will be able to:
 Before starting this lesson, ensure you have:
 
 - Completed Lesson 4.7 (CI with CircleCI)
-- Completed Lesson 4.12 (Continuous Deployment to Railway)
+- Completed Lesson 4.12 (Continuous Deployment to Render or Railway)
 - Understanding of CI/CD pipelines
 - Basic understanding of Docker
 - Your **devops-demo** repository with the Lesson 4.12 pipeline: build → test → publish → deploy
@@ -176,7 +176,7 @@ Read the Trivy supply-chain attack example above and discuss the following:
 3. The malware stole the secrets available to the pipeline. Which secrets does **your** devops-demo pipeline hold (Lessons 4.7 and 4.12)? What could an attacker do with them?
 4. Affected teams had to rotate **every** secret their pipelines could reach. How could a team limit the damage **before** an attack like this happens?
 
-<!-- Discussion hints: 1) One compromised tool reaches thousands of pipelines - and CI pipelines hold powerful secrets. 2) Tags can be moved to different code; a commit SHA always points at the same code (covered in Part 7). 3) DOCKER_TOKEN (push any image to their Docker Hub repo) and RAILWAY_TOKEN (redeploy their production service). 4) Pin tools by hash, give secrets only to the jobs that need them, use short-lived/scoped tokens, know where every secret is so rotation is fast. -->
+<!-- Discussion hints: 1) One compromised tool reaches thousands of pipelines - and CI pipelines hold powerful secrets. 2) Tags can be moved to different code; a commit SHA always points at the same code (covered in Part 7). 3) DOCKER_TOKEN (push any image to their Docker Hub repo) and the deploy secret - RENDER_DEPLOY_HOOK_URL or RAILWAY_TOKEN (redeploy their production service). 4) Pin tools by hash, give secrets only to the jobs that need them, use short-lived/scoped tokens, know where every secret is so rotation is fast. -->
 
 > **Key takeaway:** Security failures are almost always process failures, not just technical ones.
 
@@ -1056,7 +1056,7 @@ echo "<expected-sha256>  snyk" | sha256sum -c -
 
 **Shift-left connection:** the attack came through the **pipeline**, not the application code. DevSecOps protects the pipeline as well as the app.
 
-<!-- Discussion prompts (optional, 5 min): Which references in your own .circleci/config.yml are tags? (cimg images, the Railway CLI in deploy). Which jobs hold secrets? (publish: Docker Hub token via context; deploy: RAILWAY_TOKEN). Pinning images by digest stops automatic security updates - teams use tools like Renovate or Dependabot to update pinned digests. Source: https://www.aquasec.com/blog/trivy-supply-chain-attack-what-you-need-to-know -->
+<!-- Discussion prompts (optional, 5 min): Which references in your own .circleci/config.yml are tags? (cimg images; for Railway users, the Railway CLI in deploy). Which jobs hold secrets? (publish: Docker Hub token via context; deploy: RENDER_DEPLOY_HOOK_URL or RAILWAY_TOKEN). Pinning images by digest stops automatic security updates - teams use tools like Renovate or Dependabot to update pinned digests. Source: https://www.aquasec.com/blog/trivy-supply-chain-attack-what-you-need-to-know -->
 
 ---
 
@@ -1278,9 +1278,11 @@ workflows:
 **What changed?**
 - `snyk_scan` and `snyk_code` have no `requires` - they start with `build`, so you get feedback within minutes (shift left!)
 - `publish` now waits for `test`, `snyk_scan` **and** `snyk_code`
-- If `snyk_scan` fails, nothing is pushed to Docker Hub and Railway keeps the previous version
+- If `snyk_scan` fails, nothing is pushed to Docker Hub and your cloud platform keeps the previous version
 
 **Complete updated config.yml:**
+
+> The `deploy` job below is the **Render** version from Lesson 4.12. If you deploy to **Railway**, keep your own `deploy` job (`railway redeploy`) exactly as it is - only the security jobs and the workflow change today.
 
 ```yml
 version: 2.1
@@ -1385,14 +1387,15 @@ jobs:
 
   deploy:
     docker:
-      - image: cimg/node:lts
+      - image: cimg/base:stable
     steps:
       - run:
-          name: Redeploy latest image on Railway
+          name: Redeploy latest image on Render
           command: |
-            echo "Asking Railway to redeploy the latest image..."
-            npx --yes @railway/cli redeploy --service "$RAILWAY_SERVICE_ID" --yes
-            echo "Railway is now pulling $DOCKER_USERNAME/devops-demo:latest from Docker Hub."
+            echo "Asking Render to redeploy the latest image..."
+            curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK_URL"
+            echo ""
+            echo "Render is now pulling the latest devops-demo image from Docker Hub."
 
 workflows:
   build_test_scan_publish_deploy:
@@ -1428,7 +1431,7 @@ In CircleCI, `build`, `snyk_scan` and `snyk_code` start together.
 - ✅ `build` and `test` pass - the code compiles and the tests work
 - ❌ `snyk_scan` **fails** - HIGH or CRITICAL vulnerabilities in the dependencies
 - `snyk_code` passes or fails, depending on what Snyk Code finds in the source
-- ⏹ `publish` and `deploy` **never run** - nothing is pushed to Docker Hub, and Railway keeps running the last version
+- ⏹ `publish` and `deploy` **never run** - nothing is pushed to Docker Hub, and your cloud platform keeps running the last version
 
 **The gate did its job.** Code that works but isn't safe did not reach production.
 
@@ -1513,7 +1516,7 @@ Fill the table from **your** pipeline's output - the top 3-5 issues are enough.
 4. A teammate suggests `fail-on-issues: false` "so we can keep deploying". What would you say?
 5. Which jobs in your pipeline can see your Docker Hub and deployment tokens? Which ones don't need to?
 
-<!-- Answers: 1) Tests check behaviour, not known vulnerabilities - vulnerable code can work perfectly. 2) The website only reports; the pipeline job blocks publish/deploy. 3) SCA: libraries in pom.xml (other people's code); SAST: patterns in our own source. 4) It turns the gate into a report and ships known-vulnerable code; instead fix, or accept a specific issue with a reviewed, time-limited ignore. 5) publish (docker-hub context) and deploy (RAILWAY_TOKEN); project env vars are visible to all jobs - contexts limit that. -->
+<!-- Answers: 1) Tests check behaviour, not known vulnerabilities - vulnerable code can work perfectly. 2) The website only reports; the pipeline job blocks publish/deploy. 3) SCA: libraries in pom.xml (other people's code); SAST: patterns in our own source. 4) It turns the gate into a report and ships known-vulnerable code; instead fix, or accept a specific issue with a reviewed, time-limited ignore. 5) publish (docker-hub context) and deploy (RENDER_DEPLOY_HOOK_URL or RAILWAY_TOKEN); project env vars are visible to all jobs - contexts limit that. -->
 
 ---
 
