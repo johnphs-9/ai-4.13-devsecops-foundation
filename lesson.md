@@ -957,7 +957,7 @@ mvn versions:display-dependency-updates
 | Lesson | Tool | Type | Where it runs |
 |---|---|---|---|
 | **4.13 (today)** | **Snyk** | SCA | On the Snyk website, then as a CircleCI job |
-| 4.14 | **OSV-Scanner** (Google) | SCA | GitHub Actions |
+| 4.14 | **Dependabot** | SCA | Built into GitHub |
 | 4.14 | **OWASP ZAP** | DAST | GitHub Actions, against your live app (Render or Railway) |
 
 ---
@@ -1678,9 +1678,9 @@ The CircleCI orb's `snyk test` reads `.snyk` automatically. In the new pipeline:
 ### Preparing for Lesson 4.14
 
 **In the next lesson, you will:**
-1. Add **OSV-Scanner** (Google) as a GitHub Actions workflow - pinned by commit SHA
-2. See its results in your repository's **Security** tab
-3. Handle a finding by fixing it or ignoring it - with a reason and an expiry date
+1. Turn on **Dependabot** - GitHub's built-in dependency scanner - including transitive Maven dependencies
+2. See its alerts in your repository's **Security** tab
+3. Dismiss one alert with a reason - and compare it with your `.snyk` ignore
 4. Run an **OWASP ZAP** DAST scan against your live app (on Render or Railway)
 
 **Before next lesson:**
