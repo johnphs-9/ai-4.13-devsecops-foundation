@@ -103,6 +103,30 @@ A - True
 
 B - False
 
+---
+
+Q11: You accept one Snyk finding with `snyk ignore`. What should every ignore in the `.snyk` file have?
+
+A - Nothing - an ignore is permanent
+
+B - A reason and an expiry date, for one specific issue
+
+C - A wildcard that ignores all HIGH issues
+
+D - The developer's Snyk token
+
+---
+
+Q12: After you ignore one HIGH issue in `.snyk`, `snyk_scan` still fails in CircleCI. Is the security gate broken?
+
+A - Yes - the ignore did not work
+
+B - No - the other HIGH and CRITICAL issues are still there, so the gate still blocks the release
+
+C - Yes - `.snyk` only works on the Snyk website
+
+D - No - CircleCI caches old results forever
+
 ## Notes
 - Keep each question atomic and aligned to the lesson objectives.
 - Put the answer immediately after each question.

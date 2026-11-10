@@ -10,6 +10,7 @@ By the end of this lesson, you will be able to:
 4. **Apply** secrets management best practices to protect sensitive credentials
 5. **Explain** why pipelines should pin tools by immutable hashes, using the 2026 Trivy supply-chain attack
 6. **Scan** dependencies (SCA) and code (SAST) with Snyk - on the Snyk website and as CircleCI security gates
+7. **Accept** a single finding temporarily with the Snyk CLI (`snyk ignore` in a `.snyk` file) - with a reason and an expiry date
 
 ---
 
@@ -1056,13 +1057,13 @@ echo "<expected-sha256>  snyk" | sha256sum -c -
 
 **Shift-left connection:** the attack came through the **pipeline**, not the application code. DevSecOps protects the pipeline as well as the app.
 
-<!-- Discussion prompts (optional, 5 min): Which references in your own .circleci/config.yml are tags? (cimg images; the Render CLI download is pinned to a version; for Railway users, the Railway CLI in deploy, fetched by npx without a version). Which jobs hold secrets? (publish: Docker Hub token via context; deploy: RENDER_API_KEY or RAILWAY_TOKEN; notify: DISCORD_WEBHOOK_URL). Pinning images by digest stops automatic security updates - teams use tools like Renovate or Dependabot to update pinned digests. Source: https://www.aquasec.com/blog/trivy-supply-chain-attack-what-you-need-to-know -->
+<!-- Discussion prompts (optional, 5 min): Which references in your own .circleci/config.yml are tags? (cimg images; the Render CLI install script, run with `curl | sh` from the main branch - it always installs the latest CLI; for Railway users, the Railway CLI, fetched by npx without a version). Which jobs hold secrets? (publish: Docker Hub token via context; deploy: RENDER_API_KEY or RAILWAY_TOKEN; notify: DISCORD_WEBHOOK_URL). Pinning images by digest stops automatic security updates - teams use tools like Renovate or Dependabot to update pinned digests. Source: https://www.aquasec.com/blog/trivy-supply-chain-attack-what-you-need-to-know -->
 
 ---
 
 ## Part 8 - Activity 3: Scan Your Project with Snyk (45 min)
 
-**Your role today: the DevSecOps team.** Your job is to **find** security problems, **stop** them from reaching production, and **report** them to the developers. Fixing application code is the developers' job - not today's activity.
+**Your role today: the DevSecOps team.** Your job is to **find** security problems, **stop** them from reaching production, and **triage** them - decide what must block a release and what the team can accept for a short time. Fixing application code is the developers' job - not today's activity.
 
 You'll use **Snyk** for two kinds of scanning:
 
@@ -1077,7 +1078,7 @@ You'll use **Snyk** for two kinds of scanning:
 |---|---|---|
 | **A** | Snyk website | Snyk scans your GitHub repository and shows every issue with fix advice |
 | **B** | CircleCI | `snyk_scan` (SCA) and `snyk_code` (SAST) jobs that **block publish and deploy** when HIGH or CRITICAL issues are found |
-| **C** | GitHub | A **security ticket** for the developers |
+| **C** | Your laptop - Snyk CLI with `npx` | **One** finding accepted temporarily in a `.snyk` file - with a reason and an expiry date |
 
 **Your pipeline after Part B:**
 
@@ -1087,7 +1088,7 @@ snyk_scan  (SCA) ────┼──► publish ──► deploy
 snyk_code  (SAST) ───┘
 ```
 
-**Expect the pipeline to fail.** devops-demo's dependencies already contain HIGH and CRITICAL vulnerabilities. That's the point: the security gate **stops** the release. You'll read what it found and report it.
+**Expect the pipeline to fail.** devops-demo's dependencies already contain HIGH and CRITICAL vulnerabilities. That's the point: the security gate **stops** the release. You'll read what it found and triage it.
 
 <!-- INSTRUCTOR: run Part B on devops-demo before class and note which HIGH/CRITICAL issues snyk_scan reports (and whether snyk_code finds anything) so you can talk through them. Orb snyk/snyk@2.3.0 (latest version published in the CircleCI orb registry, 1 Apr 2025, checked 2026-10-21 - GitHub has newer tags 2.3.1-2.3.3 that are not published to the registry; use only registry versions) with cli-version 1.1308.1 (https://downloads.snyk.io/cli/stable/release.json, 2026-10-20). Students must enable Allow Uncertified Orbs in their own CircleCI organization, and Snyk Code in their Snyk organization. Check the current Snyk Free plan limits for Open Source and Code tests. -->
 
@@ -1400,21 +1401,20 @@ jobs:
     docker:
       - image: cimg/base:stable
     environment:
-      RENDER_CLI_VERSION: "2.7.0"
+      IMAGE_URL: docker.io/YOUR_DOCKERHUB_USERNAME/devops-demo:latest
     steps:
       - run:
           name: Install the Render CLI
           command: |
-            curl -fsSL -o /tmp/render.zip \
-              "https://github.com/render-oss/cli/releases/download/v${RENDER_CLI_VERSION}/cli_${RENDER_CLI_VERSION}_linux_amd64.zip"
-            unzip -q /tmp/render.zip -d /tmp/render
-            sudo mv "/tmp/render/cli_v${RENDER_CLI_VERSION}" /usr/local/bin/render
-            render --version
+            curl -fsSL https://raw.githubusercontent.com/render-oss/cli/refs/heads/main/bin/install.sh | sh
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$BASH_ENV"
       - run:
           name: Redeploy latest image on Render and wait
           command: |
-            echo "Asking Render to redeploy the latest image..."
-            render deploys create "$RENDER_SERVICE_ID" --wait --confirm --output text
+            echo "Asking Render to deploy $IMAGE_URL..."
+            render deploys create "$RENDER_SERVICE_ID" \
+              --image "$IMAGE_URL" \
+              --wait --confirm --output text
             echo "The new version is live on Render."
 
   notify:
@@ -1528,35 +1528,98 @@ Then open **snyk_code**: Snyk Code issues show the **file**, **line** and **type
 
 ---
 
-### Part C - Report to the Developers
+### Part C - Accept One Finding (Temporarily)
 
-In a real team, the DevSecOps team doesn't fix the application - it **reports** the problem so the developers can plan the fix.
+The developers can't fix every finding today. Sometimes a team decides to **accept** one specific risk for a short time - for example, the vulnerable feature of the library isn't used, or the fix is already planned for the next upgrade.
 
-#### Step 12: Open a Security Ticket
+Snyk records that decision in a **`.snyk` policy file** in your repository: **which** issue, **why**, and **until when**. Because it's a file in Git, the decision is version-controlled and can be reviewed like code. When the expiry date passes, the issue comes back automatically.
 
-In your **devops-demo** repository on GitHub, open **Issues** → **New issue**:
+> **An ignore is a decision, not a shortcut:** one issue, a written reason, an expiry date. Never ignore everything just to turn the pipeline green.
 
-```markdown
-Title: [Security] Snyk found HIGH/CRITICAL vulnerabilities - release blocked
+<!-- INSTRUCTOR: before class, check that snyk_scan reports at least TWO HIGH/CRITICAL Open Source issues on devops-demo. If there is only one, ignoring it turns snyk_scan green and publish + deploy run. `snyk ignore create` is a different command: Snyk Code only, Early Access ("Consistent Ignores"), stored on the Snyk platform - not in .snyk. Snyk CLI docs, 2026-11-10. -->
 
-**Found by:** CircleCI snyk_scan / snyk_code - pipeline #<number> (link)
-**Impact:** publish and deploy are blocked until these are fixed
+#### Step 12: Pick One Finding
 
-| Library / file | Severity | Issue | Fix advice |
-|---|---|---|---|
-| tomcat-embed-core x.y.z | High | Denial of Service | Upgrade Spring Boot to x.y.w |
-| ... | ... | ... | ... |
+1. Go back to the **snyk_scan** output from Step 11
+2. Choose **one** HIGH issue
+3. Copy its **Snyk ID** - the last part of the issue's link:
 
-**Suggested next step:** upgrade the Spring Boot parent version, re-run the pipeline.
+```
+https://security.snyk.io/vuln/SNYK-JAVA-ORGAPACHETOMCATEMBED-1234567
+                              └──────────── Snyk ID ────────────┘
 ```
 
-Fill the table from **your** pipeline's output - the top 3-5 issues are enough.
+> Only **Snyk Open Source** issues (from `snyk_scan`) can be ignored in `.snyk`. Snyk Code issues (from `snyk_code`) can't.
 
-**A good security ticket:**
-- Says **what** was found, **where**, and **how serious** it is
-- Links to the **evidence** (the failed pipeline)
-- Includes the **fix advice**, so developers can act quickly
-- Doesn't paste secrets or tokens
+#### Step 13: Run the Snyk CLI with npx
+
+You don't need to install anything except **Node.js** (check with `node -v`). `npx` downloads the Snyk CLI the first time you use it.
+
+Open a terminal in your **devops-demo** project folder (the Git repository you push to GitHub), then run:
+
+```bash
+npx snyk --version
+npx snyk auth
+```
+
+- `npx` may ask **"Ok to proceed?"** the first time - type `y`
+- `auth` opens your browser: log in with your Snyk account from Part A and click **Authenticate**
+
+**Optional - scan on your laptop:** `npx snyk test --severity-threshold=high` runs the same scan as `snyk_scan`. Snyk runs Maven to read your dependencies, so it needs Java 21 on your laptop.
+
+<!-- INSTRUCTOR: dry-run npx on a student-like laptop (macOS and Windows): the npm package downloads the CLI binary on first run. For `snyk test`, check whether the CLI uses the project's ./mvnw or needs mvn on PATH. -->
+
+#### Step 14: Ignore the Issue
+
+Run `snyk ignore` with **your** Snyk ID, an expiry date about **30 days** from today, and a reason:
+
+```bash
+npx snyk ignore --id=SNYK-JAVA-ORGAPACHETOMCATEMBED-1234567 --expiry=2026-12-31 --reason="Accepted temporarily: training app, fix planned with the next Spring Boot upgrade"
+```
+
+| Option | Meaning |
+|---|---|
+| `--id` | The **one** issue to ignore - your Snyk ID from Step 12 |
+| `--expiry` | When the ignore ends (`YYYY-MM-DD`). Always set it - without it, Snyk uses 30 days |
+| `--reason` | **Why** the team accepts the risk - written for the next person who reads it |
+
+Snyk creates (or updates) a `.snyk` file in the project folder. Open it - it looks similar to this:
+
+```yaml
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.25.0
+ignore:
+  SNYK-JAVA-ORGAPACHETOMCATEMBED-1234567:
+    - '*':
+        reason: 'Accepted temporarily: training app, fix planned with the next Spring Boot upgrade'
+        expires: 2026-12-31T00:00:00.000Z
+        created: 2026-11-10T08:00:00.000Z
+patch: {}
+```
+
+`'*'` means the issue is ignored on **every** dependency path that brings it in.
+
+#### Step 15: Commit, Push and Watch the Gate
+
+```bash
+git add .snyk
+git commit -m "Snyk: accept SNYK-JAVA-...-1234567 until 2026-12-31"
+git push origin main
+```
+
+The CircleCI orb's `snyk test` reads `.snyk` automatically. In the new pipeline:
+
+- The ignored issue is **gone** from the `snyk_scan` output, and the issue count is one lower
+- ❌ `snyk_scan` **still fails** - the other HIGH and CRITICAL issues are still there
+- ⏹ `publish` and `deploy` are still blocked
+
+**The gate still works** for everything you didn't accept. Only one reviewed, time-limited decision changed.
+
+**A good ignore:**
+- Covers **one** issue - never a wildcard for everything
+- Has a **reason** someone else can understand months later
+- Has an **expiry date**, so the decision is reviewed again
+- Is **reviewed** - in a real team, `.snyk` changes go through a pull request approved by the security or tech lead
 
 ---
 
@@ -1566,9 +1629,10 @@ Fill the table from **your** pipeline's output - the top 3-5 issues are enough.
 2. The Snyk website already showed the issues. Why put the scans **in the pipeline** as well?
 3. `snyk_scan` (SCA) and `snyk_code` (SAST) found different things. What does each one look at?
 4. A teammate suggests `fail-on-issues: false` "so we can keep deploying". What would you say?
-5. Which jobs in your pipeline can see your Docker Hub and deployment tokens? Which ones don't need to?
+5. Why does every ignore in `.snyk` need a **reason** and an **expiry date**? Who should approve it?
+6. Which jobs in your pipeline can see your Docker Hub and deployment tokens? Which ones don't need to?
 
-<!-- Answers: 1) Tests check behaviour, not known vulnerabilities - vulnerable code can work perfectly. 2) The website only reports; the pipeline job blocks publish/deploy. 3) SCA: libraries in pom.xml (other people's code); SAST: patterns in our own source. 4) It turns the gate into a report and ships known-vulnerable code; instead fix, or accept a specific issue with a reviewed, time-limited ignore. 5) publish (docker-hub context), deploy (RENDER_API_KEY or RAILWAY_TOKEN) and notify (DISCORD_WEBHOOK_URL); project env vars are visible to all jobs - contexts limit that. -->
+<!-- Answers: 1) Tests check behaviour, not known vulnerabilities - vulnerable code can work perfectly. 2) The website only reports; the pipeline job blocks publish/deploy. 3) SCA: libraries in pom.xml (other people's code); SAST: patterns in our own source. 4) It turns the gate into a report and ships known-vulnerable code; instead fix, or accept a specific issue with a reviewed, time-limited ignore (Part C). 5) The reason records why the risk was accepted; the expiry forces the decision to be reviewed again; the security or tech lead approves it in a pull request. 6) publish (docker-hub context), deploy (RENDER_API_KEY or RAILWAY_TOKEN) and notify (DISCORD_WEBHOOK_URL); project env vars are visible to all jobs - contexts limit that. -->
 
 ---
 
@@ -1584,7 +1648,8 @@ Fill the table from **your** pipeline's output - the top 3-5 issues are enough.
 6. ✅ **Security Scanning Tools** - SAST (your code), DAST (running app), SCA (dependencies), container scanning
 7. ✅ **Supply-chain security** - the Trivy attack showed why tools are pinned by hash, not by tag
 8. ✅ **Snyk** scans dependencies (SCA) and your own code (SAST, Snyk Code) - on its website and as CircleCI gates that block publish and deploy
-9. ✅ **The DevSecOps role** - find, stop and **report** security problems; developers fix them
+9. ✅ **The DevSecOps role** - find, stop and **triage** security problems; developers fix them
+10. ✅ **`snyk ignore`** (run with `npx`, no install) accepts **one** finding in `.snyk` - with a reason and an expiry date
 
 ---
 

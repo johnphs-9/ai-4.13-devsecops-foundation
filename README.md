@@ -15,6 +15,7 @@
 * **Apply** secrets management best practices to protect sensitive credentials
 * **Explain** why pipelines pin tools by immutable hashes (2026 Trivy supply-chain attack)
 * **Scan** dependencies (SCA) and code (SAST) with Snyk on the Snyk website and as CircleCI security gates
+* **Accept** a single finding temporarily with the Snyk CLI (`snyk ignore` in a `.snyk` file) - with a reason and an expiry date
 
 ## Lesson Plan
 
@@ -30,6 +31,6 @@
 | 15 min | Part 5: Dependency vulnerabilities | CVEs, Log4Shell example, transitive dependencies, best practices |
 | 10 min | Part 6: Security scanning types | SAST, DAST, SCA and container scanning table; tools used in 4.13 and 4.14 |
 | 15 min | Part 7: Supply-chain security — lessons from the Trivy attack | Who was hit and who was safe, tags vs hashes, pinning by commit SHA / digest / checksum, least privilege |
-| 45 min | Part 8: Activity 3 — Snyk as the DevSecOps team | Part A: import devops-demo on the Snyk website, turn on Snyk Code; Part B: `snyk_scan` (SCA) and `snyk_code` (SAST) CircleCI jobs with the Snyk orb (pinned `snyk/snyk@2.3.0`, why orbs are secure) - watch the gate block publish/deploy and read the findings; Part C: open a security ticket for the developers |
+| 45 min | Part 8: Activity 3 — Snyk as the DevSecOps team | Part A: import devops-demo on the Snyk website, turn on Snyk Code; Part B: `snyk_scan` (SCA) and `snyk_code` (SAST) CircleCI jobs with the Snyk orb (pinned `snyk/snyk@2.3.0`, why orbs are secure) - watch the gate block publish/deploy and read the findings; Part C: accept one Snyk Open Source finding temporarily - Snyk CLI via `npx snyk` (auth, `snyk ignore --id --expiry --reason`), commit `.snyk`, see snyk_scan still fail on the other issues |
 | 5 min | Recap and wrap up | Key takeaways, preview Lesson 4.14 (OSV-Scanner, OWASP ZAP), Q&A |
 | **Total** | | **180 min** |
